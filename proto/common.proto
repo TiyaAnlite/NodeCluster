@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+//消息公共封装
+message ClusterData {
+  enum DataType {
+    PAYLOAD = 0;  //载荷
+    HEARTBEAT = 1;  //心跳
+  }
+  enum CompressType {
+    PLAIN = 0;  //无压缩
+    GZIP = 1;
+    ZLIB = 2;
+    LZ4 = 3;
+  }
+
+  string node_id = 1;  //Node唯一识别ID
+  DataType type = 2;  //数据类型
+  CompressType compress = 3;  //压缩方式
+  bytes data = 4;  //数据体
+}
+
+//载荷数据
+message PayloadData {
+  enum DataType {
+    DATA = 0;  //数据
+    COMMAND = 1;  //指令
+  }
+  //认证数据
+  message Auth {
+    string key = 1;  //认证密钥ID
+    string node = 2;  //随机认证字符串
+    int32 time = 3;  //签名时间，超过3分钟拒绝
+    bytes sign = 4;  //签名数据
+  }
+
+  DataType type = 1;  //载荷类型
+  Auth auth = 2;  //认证数据
+  Command command = 3;  //指令
+  bytes data = 4;  //数据
+}
+
+//指令
+enum Command {
+  REGISTER = 0;  //节点注册
+  LIST_DEVICES = 1;  //列出在线节点
+}

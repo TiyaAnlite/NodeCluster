@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+//注册指令数据
+message RegisterCommand {
+  string node_id = 1;  //Node唯一识别ID
+  int32 inet_a = 2;
+  int32 inet_b = 3;
+  int32 inet_c = 4;
+  int32 inet_d = 5;
+}

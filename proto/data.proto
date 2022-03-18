@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+enum CommandResult {
+  FAIL = 0;
+  SUCCESS = 1;
+}
+
+//通用数据
+message UniversalData {
+  message FailCommandData {
+    string key = 1;  //错误指示键
+    string message = 2;  //错误信息
+  }
+
+  CommandResult result = 1;  //指令结果
+  FailCommandData fail_data = 2;  //失败结果数据
+}
+
+//注册指令响应
+message RegisterData {
+  enum RegisterFail {
+    HEARTBEAT_FAIL = 0;  //心跳检查失败
+    NOT_SERVER_NODE = 1;  //非中心节点
+    ILLEGAL_INET = 99;  //非法的IP地址
+  }
+
+  CommandResult result = 1;
+  RegisterFail fail = 2;
+}
+
+//列出设备指令响应
+message ListDevicesData {
+  enum ListDevicesFail {
+    NOT_AUTH = 0;  //未认证
+  }
+  message Device {
+    string node_id = 1;  //Node唯一识别ID
+    int32 inet_a = 2;
+    int32 inet_b = 3;
+    int32 inet_c = 4;
+    int32 inet_d = 5;
+    int32 online_time = 6;  //上线时间
+    int32 latency = 7;  //延迟
+  }
+
+  CommandResult result = 1;
+  ListDevicesFail fail = 2;
+  repeated Device devices = 3;  //设备列表
+}
