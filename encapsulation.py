@@ -3,6 +3,7 @@ import zlib
 import time
 import random
 import string
+import base64
 import lz4.block
 import logging
 
@@ -11,22 +12,52 @@ from google.protobuf.message import DecodeError
 
 from proto.common_pb2 import ClusterData as pb_ClusterData
 from proto.common_pb2 import PayloadData as pb_PayloadData
+from proto.common_pb2 import Command as enum_Command
 
 
 class AuthToolkit:
     def get_key(self) -> str:
         raise RuntimeError("Method not implemented")
 
-    def sign(self, key: str, data: bytes) -> bytes:
+    def sign(self, data: bytes) -> bytes:
         raise RuntimeError("Method not implemented")
 
     def generate_node(self, digit=32) -> str:
-        return "".join(random.choices(string.ascii_uppercase + string.digits, k=digit))
+        return "".join(random.choices(string.ascii_letters + string.digits, k=digit))
+
+
+class RegisteredService:
+    def __init__(self, logger: logging.Logger):
+        self.logger = logger
+
+    @staticmethod
+    def parse_data(descriptor, data: bytes):
+        descriptor.Clear()
+        descriptor.ParseFromString(data)
+
+    @staticmethod
+    def descriptor_to_dict(descriptor) -> dict:
+        return json_format.MessageToDict(descriptor)
+
+    @staticmethod
+    def dict_to_descriptor(dict_data: dict, descriptor):
+        descriptor.Clear()
+        json_format.ParseDict(dict_data, descriptor)
+
+    @staticmethod
+    def serialize_data(descriptor):
+        return descriptor.SerializeToString()
+
+    def on_command(self, data: bytes):
+        pass
+
+    def on_data(self, data: bytes):
+        pass
 
 
 class ClusterData:
     DEFAULT_COMPRESS_TYPE = pb_ClusterData.CompressType.ZLIB
-    DEAULT_COMRESS_THRESHOLD = 128
+    DEFAULT_COMPRESS_THRESHOLD = 128
 
     def __init__(self, logger: logging.Logger):
         self.logger = logger
@@ -38,13 +69,16 @@ class ClusterData:
 
     def parse(self, data: bytes):
         try:
+            self._data.Clear()
             self._data.ParseFromString(data)
             if not self._data.node_id:
                 self.logger.error("ClusterData: node_id not set.")
                 raise DecodeError()
             self.node_id = self._data.node_id
             self.compress = self._data.compress
+            self.payload.node_id = self.node_id
             if self._data.type == pb_ClusterData.DataType.PAYLOAD:
+                self.logger.debug("ClusterData: recv payload")
                 if self._data.compress == pb_ClusterData.CompressType.PLAIN:
                     self.payload.parse(self._data.data)
                 elif self._data.compress == pb_ClusterData.CompressType.GZIP:
@@ -54,8 +88,10 @@ class ClusterData:
                 elif self._data.compress == pb_ClusterData.CompressType.LZ4:
                     self.payload.parse(lz4.block.decompress(self._data.data))
                 else:
-                    self.logger.error("ClusterData: not supported compress type")
+                    self.logger.error("ClusterData: unsupported compress type")
+                    raise DecodeError()
             elif self._data.type == pb_ClusterData.DataType.HEARTBEAT:
+                self.logger.debug("ClusterData: recv heartbeat")
                 self.heartbeat = True
             else:
                 self.logger.error("ClusterData: unknown data type.")
@@ -63,22 +99,26 @@ class ClusterData:
         except DecodeError:
             self.logger.error("Illegal ClusterData received")
 
-    def make_heartbeat(self):
+    def make_heartbeat(self, node_id: str):
         self.heartbeat = True
+        self.node_id = node_id
 
-    def make_payload(self, node_id: str):
+    def make_payload(self, node_id: str) -> pb_PayloadData:
         self.heartbeat = False
         self.node_id = node_id
+        return self.payload
 
     def serialize(self) -> bytes:
         self._data.Clear()
         self._data.node_id = self.node_id
         if self.heartbeat:
+            self.logger.debug("ClusterData: send heartbeat")
             self._data.type = pb_ClusterData.DataType.HEARTBEAT
         else:
+            self.logger.debug("ClusterData: send data")
             self._data.type = pb_ClusterData.DataType.PAYLOAD
             data = self.payload.serialize()
-            if len(data) >= self.DEAULT_COMRESS_THRESHOLD:
+            if len(data) >= self.DEFAULT_COMPRESS_THRESHOLD:
                 self._data.compress = self.DEFAULT_COMPRESS_TYPE
                 if self.DEFAULT_COMPRESS_TYPE == pb_ClusterData.CompressType.PLAIN:
                     self._data.data = data
@@ -88,22 +128,27 @@ class ClusterData:
                     self._data.data = zlib.compress(data)
                 elif self.DEFAULT_COMPRESS_TYPE == pb_ClusterData.CompressType.LZ4:
                     self._data.data = lz4.block.compress(data)
+                else:
+                    raise RuntimeError("ClusterData: unknown compress type")
+                self.logger.debug(f"ClusterData: compress payload {len(data)} -> {len(self._data.data)}")
             else:
                 self._data.compress = pb_ClusterData.CompressType.PLAIN
                 self._data.data = data
+                self.logger.debug(f"ClusterData: payload {len(data)} bytes")
         return self._data.SerializeToString()
 
 
 class PayloadData:
     def __init__(self, logger: logging.Logger):
         self.logger = logger
+        self.node_id = ""
         self._data = pb_PayloadData()
         self.auth = dict()
         self.command = True
-        self.data = b''
 
     def parse(self, data: bytes):
         try:
+            self._data.Clear()
             self._data.ParseFromString(data)
             self.auth = json_format.MessageToDict(self._data.auth)
             if self._data.type == pb_PayloadData.DataType.DATA:
@@ -116,36 +161,79 @@ class PayloadData:
         except DecodeError:
             self.logger.error("Illegal PayloadData received")
 
+    def callback_payload(self, service_map: dict):
+        """
+        负载服务回调
+        :param service_map: 服务注册表
+        """
+        if self._data.command not in service_map:
+            self.logger.warning(f"Unsupported service: {enum_Command.Name(self._data.command)}, req node: {self.node_id}")
+            return
+        if self.command:
+            service_map[self._data.command].on_command(self._data.data)
+        else:
+            service_map[self._data.command].on_data(self._data.data)
+
     def _auth_sign(self, toolkit: AuthToolkit) -> bytes:
-        data = self.auth["key"] + self.auth["node"] + self.auth[
-            "time"] + self._data.command.SerializeToString() + self.data
+        data = "\n".join((self.auth["key"], self.auth["node"], str(self.auth["time"]), str(self._data.command))).encode(
+            "utf-8")
+        data += "\n".encode("utf-8") + self._data.data
         return toolkit.sign(data)
 
     def check_auth(self, toolkit: AuthToolkit) -> bool:
+        """
+        检查认证
+        :param toolkit: 认证套件
+        :return:
+        """
+        if self._data.auth.key != toolkit.get_key():
+            self.logger.warning(f"PayloadData: recv auth key {self._data.auth.key} mismatch")
+            return False
         if self._data.auth.sign and self._data.auth.sign == self._auth_sign(toolkit):
             return True
         else:
             return False
 
     def make_command(self, command: int, data: bytes):
-        self._data.command = command  # Command字段提前写入
-        self.data = data
+        """
+        构建指令型负载
+        :param command: 指令
+        :param data: 指令数据
+        """
+        self._data.Clear()
+        self._data.command = command
+        self._data.data = data
         self.command = True
+        self._data.type = pb_PayloadData.DataType.COMMAND
 
     def make_data(self, command: int, data: bytes):
-        self._data.command = command  # Command字段提前写入
-        self.data = data
+        """
+        构造数据型负载
+        :param command: 数据对应指令
+        :param data: 数据
+        """
+        self._data.Clear()
+        self._data.command = command
+        self._data.data = data
         self.command = False
+        self._data.type = pb_PayloadData.DataType.DATA
 
     def auth_sign(self, toolkit: AuthToolkit):
+        """
+        对负载进行签名，必须在make过后调用
+        :param toolkit: 认证套件
+        """
         self.auth["key"] = toolkit.get_key()
         self.auth["node"] = toolkit.generate_node()
         self.auth["time"] = int(time.time())
-        self.auth["sign"] = self._auth_sign()
+        self.auth["sign"] = base64.b64encode(self._auth_sign(toolkit)).decode()
+
+    def get_command(self) -> int:
+        return self._data.command
+
+    def get_data(self) -> bytes:
+        return self._data.data
 
     def serialize(self) -> bytes:
-        self._data.Clear()
-        self._data.type = pb_PayloadData.DataType.COMMAND if self.command else pb_PayloadData.DataType.DATA
-        self._data.auth = json_format.ParseDict(self.auth)
-        self._data.payload = self.data
+        json_format.ParseDict(self.auth, self._data.auth)
         return self._data.SerializeToString()

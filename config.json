@@ -1,3 +1,6 @@
 {
-    "run_mode": "client"
+    "run_mode": "client",
+    "auth_toolkit": "ConfigToolkit",
+    "key_id": "key_id",
+    "key": "key"
 }
