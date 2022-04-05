@@ -36,11 +36,13 @@ message PayloadData {
   DataType type = 1;  //载荷类型
   Auth auth = 2;  //认证数据
   Command command = 3;  //指令
-  bytes data = 4;  //数据
+  string service = 4;  //动态注册服务名
+  bytes data = 5;  //数据
 }
 
 //指令
 enum Command {
-  REGISTER = 0;  //节点注册
-  LIST_DEVICES = 1;  //列出在线节点
+  SERVICE = 0;  //动态注册服务
+  REGISTER = 1;  //节点注册
+  LIST_DEVICES = 2;  //列出在线节点
 }

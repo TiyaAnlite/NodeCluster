@@ -15,12 +15,13 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0c\x63ommon.proto\"\xde\x01\n\x0b\x43lusterData\x12\x0f\n\x07node_id\x18\x01 \x01(\t\x12#\n\x04type\x18\x02 \x01(\x0e\x32\x15.ClusterData.DataType\x12+\n\x08\x63ompress\x18\x03 \x01(\x0e\x32\x19.ClusterData.CompressType\x12\x0c\n\x04\x64\x61ta\x18\x04 \x01(\x0c\"&\n\x08\x44\x61taType\x12\x0b\n\x07PAYLOAD\x10\x00\x12\r\n\tHEARTBEAT\x10\x01\"6\n\x0c\x43ompressType\x12\t\n\x05PLAIN\x10\x00\x12\x08\n\x04GZIP\x10\x01\x12\x08\n\x04ZLIB\x10\x02\x12\x07\n\x03LZ4\x10\x03\"\xde\x01\n\x0bPayloadData\x12#\n\x04type\x18\x01 \x01(\x0e\x32\x15.PayloadData.DataType\x12\x1f\n\x04\x61uth\x18\x02 \x01(\x0b\x32\x11.PayloadData.Auth\x12\x19\n\x07\x63ommand\x18\x03 \x01(\x0e\x32\x08.Command\x12\x0c\n\x04\x64\x61ta\x18\x04 \x01(\x0c\x1a=\n\x04\x41uth\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x0c\n\x04node\x18\x02 \x01(\t\x12\x0c\n\x04time\x18\x03 \x01(\x05\x12\x0c\n\x04sign\x18\x04 \x01(\x0c\"!\n\x08\x44\x61taType\x12\x08\n\x04\x44\x41TA\x10\x00\x12\x0b\n\x07\x43OMMAND\x10\x01*)\n\x07\x43ommand\x12\x0c\n\x08REGISTER\x10\x00\x12\x10\n\x0cLIST_DEVICES\x10\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0c\x63ommon.proto\"\xde\x01\n\x0b\x43lusterData\x12\x0f\n\x07node_id\x18\x01 \x01(\t\x12#\n\x04type\x18\x02 \x01(\x0e\x32\x15.ClusterData.DataType\x12+\n\x08\x63ompress\x18\x03 \x01(\x0e\x32\x19.ClusterData.CompressType\x12\x0c\n\x04\x64\x61ta\x18\x04 \x01(\x0c\"&\n\x08\x44\x61taType\x12\x0b\n\x07PAYLOAD\x10\x00\x12\r\n\tHEARTBEAT\x10\x01\"6\n\x0c\x43ompressType\x12\t\n\x05PLAIN\x10\x00\x12\x08\n\x04GZIP\x10\x01\x12\x08\n\x04ZLIB\x10\x02\x12\x07\n\x03LZ4\x10\x03\"\xef\x01\n\x0bPayloadData\x12#\n\x04type\x18\x01 \x01(\x0e\x32\x15.PayloadData.DataType\x12\x1f\n\x04\x61uth\x18\x02 \x01(\x0b\x32\x11.PayloadData.Auth\x12\x19\n\x07\x63ommand\x18\x03 \x01(\x0e\x32\x08.Command\x12\x0f\n\x07service\x18\x04 \x01(\t\x12\x0c\n\x04\x64\x61ta\x18\x05 \x01(\x0c\x1a=\n\x04\x41uth\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x0c\n\x04node\x18\x02 \x01(\t\x12\x0c\n\x04time\x18\x03 \x01(\x05\x12\x0c\n\x04sign\x18\x04 \x01(\x0c\"!\n\x08\x44\x61taType\x12\x08\n\x04\x44\x41TA\x10\x00\x12\x0b\n\x07\x43OMMAND\x10\x01*6\n\x07\x43ommand\x12\x0b\n\x07SERVICE\x10\x00\x12\x0c\n\x08REGISTER\x10\x01\x12\x10\n\x0cLIST_DEVICES\x10\x02\x62\x06proto3')
 
 _COMMAND = DESCRIPTOR.enum_types_by_name['Command']
 Command = enum_type_wrapper.EnumTypeWrapper(_COMMAND)
-REGISTER = 0
-LIST_DEVICES = 1
+SERVICE = 0
+REGISTER = 1
+LIST_DEVICES = 2
 
 
 _CLUSTERDATA = DESCRIPTOR.message_types_by_name['ClusterData']
@@ -54,8 +55,8 @@ _sym_db.RegisterMessage(PayloadData.Auth)
 if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
-  _COMMAND._serialized_start=466
-  _COMMAND._serialized_end=507
+  _COMMAND._serialized_start=483
+  _COMMAND._serialized_end=537
   _CLUSTERDATA._serialized_start=17
   _CLUSTERDATA._serialized_end=239
   _CLUSTERDATA_DATATYPE._serialized_start=145
@@ -63,9 +64,9 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _CLUSTERDATA_COMPRESSTYPE._serialized_start=185
   _CLUSTERDATA_COMPRESSTYPE._serialized_end=239
   _PAYLOADDATA._serialized_start=242
-  _PAYLOADDATA._serialized_end=464
-  _PAYLOADDATA_AUTH._serialized_start=368
-  _PAYLOADDATA_AUTH._serialized_end=429
-  _PAYLOADDATA_DATATYPE._serialized_start=431
-  _PAYLOADDATA_DATATYPE._serialized_end=464
+  _PAYLOADDATA._serialized_end=481
+  _PAYLOADDATA_AUTH._serialized_start=385
+  _PAYLOADDATA_AUTH._serialized_end=446
+  _PAYLOADDATA_DATATYPE._serialized_start=448
+  _PAYLOADDATA_DATATYPE._serialized_end=481
 # @@protoc_insertion_point(module_scope)

@@ -26,6 +26,15 @@ class AuthToolkit:
         return "".join(random.choices(string.ascii_letters + string.digits, k=digit))
 
 
+class ServiceEvent:
+    def __init__(self, node_id: str, auth: bool, command: str, service: str, data: bytes):
+        self.node_id = node_id
+        self.is_auth = auth
+        self.command = command
+        self.service = service
+        self.data = data
+
+
 class RegisteredService:
     def __init__(self, logger: logging.Logger):
         self.logger = logger
@@ -48,10 +57,10 @@ class RegisteredService:
     def serialize_data(descriptor):
         return descriptor.SerializeToString()
 
-    def on_command(self, data: bytes):
+    def on_command(self, event: ServiceEvent):
         pass
 
-    def on_data(self, data: bytes):
+    def on_data(self, event: ServiceEvent):
         pass
 
 
@@ -144,7 +153,11 @@ class PayloadData:
         self.node_id = ""
         self._data = pb_PayloadData()
         self.auth = dict()
-        self.command = True
+        self.is_command = True
+        self.toolkit = AuthToolkit()
+
+    def set_toolkit(self, new_toolkit: AuthToolkit):
+        self.toolkit = new_toolkit
 
     def parse(self, data: bytes):
         try:
@@ -152,9 +165,9 @@ class PayloadData:
             self._data.ParseFromString(data)
             self.auth = json_format.MessageToDict(self._data.auth)
             if self._data.type == pb_PayloadData.DataType.DATA:
-                self.command = False
+                self.is_command = False
             elif self._data.type == pb_PayloadData.DataType.COMMAND:
-                self.command = True
+                self.is_command = True
             else:
                 self.logger.error("PayloadData: Unknown data type.")
                 raise DecodeError()
@@ -166,13 +179,16 @@ class PayloadData:
         负载服务回调
         :param service_map: 服务注册表
         """
-        if self._data.command not in service_map:
-            self.logger.warning(f"Unsupported service: {enum_Command.Name(self._data.command)}, req node: {self.node_id}")
+        service_name = enum_Command.Name(self._data.command) if self._data.command else self._data.service
+        if service_name not in service_map:
+            self.logger.warning(f"Unsupported service: {service_name}, req node: {self.node_id}")
             return
-        if self.command:
-            service_map[self._data.command].on_command(self._data.data)
+        event = ServiceEvent(self.node_id, self.check_auth(), enum_Command.Name(self._data.command), self._data.service,
+                             self._data.data)
+        if self.is_command:
+            service_map[service_name].on_command(event)
         else:
-            service_map[self._data.command].on_data(self._data.data)
+            service_map[service_name].on_data(event)
 
     def _auth_sign(self, toolkit: AuthToolkit) -> bytes:
         data = "\n".join((self.auth["key"], self.auth["node"], str(self.auth["time"]), str(self._data.command))).encode(
@@ -180,12 +196,15 @@ class PayloadData:
         data += "\n".encode("utf-8") + self._data.data
         return toolkit.sign(data)
 
-    def check_auth(self, toolkit: AuthToolkit) -> bool:
+    def check_auth(self, toolkit: AuthToolkit = None) -> bool:
         """
         检查认证
         :param toolkit: 认证套件
         :return:
         """
+        toolkit = toolkit if toolkit else self.toolkit
+        if not self._data.auth.sign:
+            return False
         if self._data.auth.key != toolkit.get_key():
             self.logger.warning(f"PayloadData: recv auth key {self._data.auth.key} mismatch")
             return False
@@ -203,7 +222,7 @@ class PayloadData:
         self._data.Clear()
         self._data.command = command
         self._data.data = data
-        self.command = True
+        self.is_command = True
         self._data.type = pb_PayloadData.DataType.COMMAND
 
     def make_data(self, command: int, data: bytes):
@@ -215,14 +234,15 @@ class PayloadData:
         self._data.Clear()
         self._data.command = command
         self._data.data = data
-        self.command = False
+        self.is_command = False
         self._data.type = pb_PayloadData.DataType.DATA
 
-    def auth_sign(self, toolkit: AuthToolkit):
+    def auth_sign(self, toolkit: AuthToolkit = None):
         """
         对负载进行签名，必须在make过后调用
         :param toolkit: 认证套件
         """
+        toolkit = toolkit if toolkit else self.toolkit
         self.auth["key"] = toolkit.get_key()
         self.auth["node"] = toolkit.generate_node()
         self.auth["time"] = int(time.time())
